@@ -49,7 +49,7 @@ FbxSystemUnit ArgumentParser::ParseUnit(const std::string& str)
 
 void ArgumentParser::PrintUsage(const char* programName)
 {
-    std::cerr << "Usage: " << programName << " -i <input.fbx> -o <output.fbx> [options]\n\n"
+    std::cout << "Usage: " << programName << " -i <input.fbx> -o <output.fbx> [options]\n\n"
               << "Options:\n"
               << "  -i, --input   <path>   Input FBX file path (required)\n"
               << "  -o, --output  <path>   Output FBX file path (required)\n"
