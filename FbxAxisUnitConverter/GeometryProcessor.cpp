@@ -71,6 +71,7 @@ void GeometryProcessor::ProcessMesh(FbxMesh* mesh, const FbxAMatrix& convMatrix,
     // --- Control points (vertex positions): rotate + scale ---
     int numVerts = mesh->GetControlPointsCount();
     FbxVector4* verts = mesh->GetControlPoints();
+    #pragma omp parallel for
     for (int i = 0; i < numVerts; ++i)
     {
         FbxVector4 v(verts[i][0] * scale,
@@ -100,6 +101,7 @@ void GeometryProcessor::ProcessMesh(FbxMesh* mesh, const FbxAMatrix& convMatrix,
                     auto* ptr = static_cast<FbxVector4*>(arr.GetLocked(FbxLayerElementArray::eReadWriteLock));
                     if (ptr)
                     {
+                        #pragma omp parallel for
                         for (int i = 0; i < cnt; ++i)
                         {
                             FbxVector4& n = ptr[i];
@@ -122,6 +124,7 @@ void GeometryProcessor::ProcessMesh(FbxMesh* mesh, const FbxAMatrix& convMatrix,
                 auto* ptr = static_cast<FbxVector4*>(arr.GetLocked(FbxLayerElementArray::eReadWriteLock));
                 if (ptr)
                 {
+                    #pragma omp parallel for
                     for (int i = 0; i < cnt; ++i)
                     {
                         FbxVector4& t = ptr[i];
@@ -143,6 +146,7 @@ void GeometryProcessor::ProcessMesh(FbxMesh* mesh, const FbxAMatrix& convMatrix,
                 auto* ptr = static_cast<FbxVector4*>(arr.GetLocked(FbxLayerElementArray::eReadWriteLock));
                 if (ptr)
                 {
+                    #pragma omp parallel for
                     for (int i = 0; i < cnt; ++i)
                     {
                         FbxVector4& b = ptr[i];
