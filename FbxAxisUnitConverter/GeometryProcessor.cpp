@@ -97,11 +97,16 @@ void GeometryProcessor::ProcessMesh(FbxMesh* mesh, const FbxAMatrix& convMatrix,
                 {
                     auto& arr = elem->GetDirectArray();
                     int cnt = arr.GetCount();
-                    for (int i = 0; i < cnt; ++i)
+                    auto* ptr = static_cast<FbxVector4*>(arr.GetLocked(FbxLayerElementArray::eReadWriteLock));
+                    if (ptr)
                     {
-                        FbxVector4 n = arr.GetAt(i);
-                        FbxVector4 nNew = convMatrix.MultT(FbxVector4(n[0], n[1], n[2], 0.0));
-                        arr.SetAt(i, FbxVector4(nNew[0], nNew[1], nNew[2], n[3]));
+                        for (int i = 0; i < cnt; ++i)
+                        {
+                            FbxVector4& n = ptr[i];
+                            FbxVector4 nNew = convMatrix.MultT(FbxVector4(n[0], n[1], n[2], 0.0));
+                            n = FbxVector4(nNew[0], nNew[1], nNew[2], n[3]);
+                        }
+                        arr.Release(reinterpret_cast<void**>(&ptr));
                     }
                 }
             }
@@ -114,11 +119,16 @@ void GeometryProcessor::ProcessMesh(FbxMesh* mesh, const FbxAMatrix& convMatrix,
             {
                 auto& arr = elem->GetDirectArray();
                 int cnt = arr.GetCount();
-                for (int i = 0; i < cnt; ++i)
+                auto* ptr = static_cast<FbxVector4*>(arr.GetLocked(FbxLayerElementArray::eReadWriteLock));
+                if (ptr)
                 {
-                    FbxVector4 t = arr.GetAt(i);
-                    FbxVector4 tNew = convMatrix.MultT(FbxVector4(t[0], t[1], t[2], 0.0));
-                    arr.SetAt(i, FbxVector4(tNew[0], tNew[1], tNew[2], t[3]));
+                    for (int i = 0; i < cnt; ++i)
+                    {
+                        FbxVector4& t = ptr[i];
+                        FbxVector4 tNew = convMatrix.MultT(FbxVector4(t[0], t[1], t[2], 0.0));
+                        t = FbxVector4(tNew[0], tNew[1], tNew[2], t[3]);
+                    }
+                    arr.Release(reinterpret_cast<void**>(&ptr));
                 }
             }
         }
@@ -130,11 +140,16 @@ void GeometryProcessor::ProcessMesh(FbxMesh* mesh, const FbxAMatrix& convMatrix,
             {
                 auto& arr = elem->GetDirectArray();
                 int cnt = arr.GetCount();
-                for (int i = 0; i < cnt; ++i)
+                auto* ptr = static_cast<FbxVector4*>(arr.GetLocked(FbxLayerElementArray::eReadWriteLock));
+                if (ptr)
                 {
-                    FbxVector4 b = arr.GetAt(i);
-                    FbxVector4 bNew = convMatrix.MultT(FbxVector4(b[0], b[1], b[2], 0.0));
-                    arr.SetAt(i, FbxVector4(bNew[0], bNew[1], bNew[2], b[3]));
+                    for (int i = 0; i < cnt; ++i)
+                    {
+                        FbxVector4& b = ptr[i];
+                        FbxVector4 bNew = convMatrix.MultT(FbxVector4(b[0], b[1], b[2], 0.0));
+                        b = FbxVector4(bNew[0], bNew[1], bNew[2], b[3]);
+                    }
+                    arr.Release(reinterpret_cast<void**>(&ptr));
                 }
             }
         }
