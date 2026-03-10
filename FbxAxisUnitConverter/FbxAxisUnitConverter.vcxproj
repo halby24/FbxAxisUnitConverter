@@ -99,6 +99,7 @@
     <ClCompile Include="TransformProcessor.cpp" />
     <ClCompile Include="AnimProcessor.cpp" />
     <ClCompile Include="FbxAxisUnitConverter.cpp" />
+    <ClCompile Include="FbxFileIO.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ArgumentParser.h" />
@@ -107,6 +108,7 @@
     <ClInclude Include="TransformProcessor.h" />
     <ClInclude Include="AnimProcessor.h" />
     <ClInclude Include="FbxAxisUnitConverter.h" />
+    <ClInclude Include="FbxFileIO.h" />
   </ItemGroup>
 
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

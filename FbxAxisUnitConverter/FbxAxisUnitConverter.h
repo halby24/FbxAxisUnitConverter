@@ -1,5 +1,6 @@
 #pragma once
 #include "ConvertOptions.h"
+#include "FbxFileIO.h"
 #include <fbxsdk.h>
 
 class FbxAxisUnitConverter

@@ -147,18 +147,7 @@ int FbxAxisUnitConverter::Run()
     mManager->SetIOSettings(ios);
 
     // --- Import ---
-    mScene = FbxScene::Create(mManager, "Scene");
-    FbxImporter* importer = FbxImporter::Create(mManager, "");
-    if (!importer->Initialize(mOptions.inputPath.c_str(), -1, mManager->GetIOSettings()))
-    {
-        throw std::runtime_error(
-            std::string("Failed to open input file: ") + mOptions.inputPath +
-            "\n" + importer->GetStatus().GetErrorString());
-    }
-    importer->Import(mScene);
-    importer->Destroy();
-
-    std::cout << "[Info] Loaded: " << mOptions.inputPath << "\n";
+    mScene = FbxFileIO::Import(mManager, mOptions.inputPath);
 
     // --- Pre-normalization (ルートオブジェクトの補正変換を除去) ---
     PreNormalize();
@@ -173,16 +162,7 @@ int FbxAxisUnitConverter::Run()
     ProcessScene();
 
     // --- Export ---
-    FbxExporter* exporter = FbxExporter::Create(mManager, "");
-    if (!exporter->Initialize(mOptions.outputPath.c_str(), -1, mManager->GetIOSettings()))
-    {
-        throw std::runtime_error(
-            std::string("Failed to open output file: ") + mOptions.outputPath);
-    }
-    exporter->Export(mScene);
-    exporter->Destroy();
-
-    std::cout << "[Info] Saved: " << mOptions.outputPath << "\n";
+    FbxFileIO::Export(mManager, mScene, mOptions.outputPath);
     return 0;
 }
 

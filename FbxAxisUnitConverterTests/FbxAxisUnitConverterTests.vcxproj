@@ -127,9 +127,11 @@
     <ClCompile Include="Test_UnitOnly.cpp" />
     <ClCompile Include="Test_RotationOrder.cpp" />
     <ClCompile Include="Test_SkinnedMesh.cpp" />
+    <ClCompile Include="Test_JapanesePath.cpp" />
 
     <!-- Shared production sources (exclude main.cpp) -->
     <ClCompile Include="..\FbxAxisUnitConverter\FbxAxisUnitConverter.cpp" />
+    <ClCompile Include="..\FbxAxisUnitConverter\FbxFileIO.cpp" />
     <ClCompile Include="..\FbxAxisUnitConverter\TransformProcessor.cpp" />
     <ClCompile Include="..\FbxAxisUnitConverter\GeometryProcessor.cpp" />
     <ClCompile Include="..\FbxAxisUnitConverter\AnimProcessor.cpp" />
@@ -149,6 +151,7 @@
     <ClInclude Include="TestHelpers.h" />
     <ClInclude Include="..\FbxAxisUnitConverter\ConvertOptions.h" />
     <ClInclude Include="..\FbxAxisUnitConverter\FbxAxisUnitConverter.h" />
+    <ClInclude Include="..\FbxAxisUnitConverter\FbxFileIO.h" />
     <ClInclude Include="..\FbxAxisUnitConverter\TransformProcessor.h" />
     <ClInclude Include="..\FbxAxisUnitConverter\GeometryProcessor.h" />
     <ClInclude Include="..\FbxAxisUnitConverter\AnimProcessor.h" />
