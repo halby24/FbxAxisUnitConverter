@@ -128,6 +128,7 @@
     <ClCompile Include="Test_RotationOrder.cpp" />
     <ClCompile Include="Test_SkinnedMesh.cpp" />
     <ClCompile Include="Test_JapanesePath.cpp" />
+    <ClCompile Include="Test_NormalConversion.cpp" />
 
     <!-- Shared production sources (exclude main.cpp) -->
     <ClCompile Include="..\FbxAxisUnitConverter\FbxAxisUnitConverter.cpp" />

@@ -91,81 +91,47 @@ void GeometryProcessor::ProcessMesh(FbxMesh* mesh, const FbxAMatrix& convMatrix,
     }
 
     // --- Layer elements: normals, tangents, binormals (rotate only, no scale) ---
+    // eDirect / eIndexToDirect 両方に対応。
+    // eIndexToDirect の場合も DirectArray に実体ベクトルが格納されているため同じ処理でよい。
+    auto rotateDirectArray = [&convMatrix](FbxLayerElementTemplate<FbxVector4>* elem)
+    {
+        if (!elem) return;
+        auto ref = elem->GetReferenceMode();
+        if (ref != FbxLayerElement::eDirect && ref != FbxLayerElement::eIndexToDirect) return;
+
+        auto& arr = elem->GetDirectArray();
+        int cnt = arr.GetCount();
+        auto* ptr = static_cast<FbxVector4*>(arr.GetLocked(FbxLayerElementArray::eReadWriteLock));
+        if (ptr)
+        {
+            #pragma omp parallel for
+            for (int i = 0; i < cnt; ++i)
+            {
+                FbxVector4& v = ptr[i];
+                FbxVector4 vNew = convMatrix.MultT(FbxVector4(v[0], v[1], v[2], 0.0));
+                v = FbxVector4(vNew[0], vNew[1], vNew[2], v[3]);
+            }
+            arr.Release(reinterpret_cast<void**>(&ptr));
+        }
+    };
+
     int layerCount = mesh->GetLayerCount();
     for (int li = 0; li < layerCount; ++li)
     {
         FbxLayer* layer = mesh->GetLayer(li);
         if (!layer) continue;
 
-        // Normals
         if (auto* elem = layer->GetNormals())
         {
             if (elem->GetMappingMode() == FbxLayerElement::eByPolygonVertex ||
                 elem->GetMappingMode() == FbxLayerElement::eByControlPoint)
             {
-                if (elem->GetReferenceMode() == FbxLayerElement::eDirect)
-                {
-                    auto& arr = elem->GetDirectArray();
-                    int cnt = arr.GetCount();
-                    auto* ptr = static_cast<FbxVector4*>(arr.GetLocked(FbxLayerElementArray::eReadWriteLock));
-                    if (ptr)
-                    {
-                        #pragma omp parallel for
-                        for (int i = 0; i < cnt; ++i)
-                        {
-                            FbxVector4& n = ptr[i];
-                            FbxVector4 nNew = convMatrix.MultT(FbxVector4(n[0], n[1], n[2], 0.0));
-                            n = FbxVector4(nNew[0], nNew[1], nNew[2], n[3]);
-                        }
-                        arr.Release(reinterpret_cast<void**>(&ptr));
-                    }
-                }
+                rotateDirectArray(elem);
             }
         }
 
-        // Tangents
-        if (auto* elem = layer->GetTangents())
-        {
-            if (elem->GetReferenceMode() == FbxLayerElement::eDirect)
-            {
-                auto& arr = elem->GetDirectArray();
-                int cnt = arr.GetCount();
-                auto* ptr = static_cast<FbxVector4*>(arr.GetLocked(FbxLayerElementArray::eReadWriteLock));
-                if (ptr)
-                {
-                    #pragma omp parallel for
-                    for (int i = 0; i < cnt; ++i)
-                    {
-                        FbxVector4& t = ptr[i];
-                        FbxVector4 tNew = convMatrix.MultT(FbxVector4(t[0], t[1], t[2], 0.0));
-                        t = FbxVector4(tNew[0], tNew[1], tNew[2], t[3]);
-                    }
-                    arr.Release(reinterpret_cast<void**>(&ptr));
-                }
-            }
-        }
-
-        // Binormals
-        if (auto* elem = layer->GetBinormals())
-        {
-            if (elem->GetReferenceMode() == FbxLayerElement::eDirect)
-            {
-                auto& arr = elem->GetDirectArray();
-                int cnt = arr.GetCount();
-                auto* ptr = static_cast<FbxVector4*>(arr.GetLocked(FbxLayerElementArray::eReadWriteLock));
-                if (ptr)
-                {
-                    #pragma omp parallel for
-                    for (int i = 0; i < cnt; ++i)
-                    {
-                        FbxVector4& b = ptr[i];
-                        FbxVector4 bNew = convMatrix.MultT(FbxVector4(b[0], b[1], b[2], 0.0));
-                        b = FbxVector4(bNew[0], bNew[1], bNew[2], b[3]);
-                    }
-                    arr.Release(reinterpret_cast<void**>(&ptr));
-                }
-            }
-        }
+        rotateDirectArray(layer->GetTangents());
+        rotateDirectArray(layer->GetBinormals());
     }
 
     // --- Skin deformers ---
