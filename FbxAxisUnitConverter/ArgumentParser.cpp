@@ -67,9 +67,10 @@ void ArgumentParser::PrintUsage(const char* programName)
               << "        Cannot be combined with --src-up/--src-forward/--src-unit.\n";
 }
 
-ConvertOptions ArgumentParser::Parse(int argc, char* argv[])
+CliOptions ArgumentParser::Parse(int argc, char* argv[])
 {
-    ConvertOptions opts;
+    CliOptions       cli;
+    ConversionParams& p = cli.params;
 
     auto getNext = [&](int& i) -> std::string
     {
@@ -83,27 +84,27 @@ ConvertOptions ArgumentParser::Parse(int argc, char* argv[])
         std::string arg = argv[i];
 
         if (arg == "-i" || arg == "--input")
-            opts.inputPath = getNext(i);
+            cli.inputPath = getNext(i);
         else if (arg == "-o" || arg == "--output")
-            opts.outputPath = getNext(i);
+            cli.outputPath = getNext(i);
         else if (arg == "--up")
-            opts.dstUp = ParseAxisVector(getNext(i));
+            p.dstUp = ParseAxisVector(getNext(i));
         else if (arg == "--forward")
-            opts.dstForward = ParseAxisVector(getNext(i));
+            p.dstForward = ParseAxisVector(getNext(i));
         else if (arg == "--unit")
-            opts.dstUnit = ParseUnit(getNext(i));
+            p.dstUnit = ParseUnit(getNext(i));
         else if (arg == "--src-up")
-            opts.srcUp = ParseAxisVector(getNext(i));
+            p.srcUp = ParseAxisVector(getNext(i));
         else if (arg == "--src-forward")
-            opts.srcForward = ParseAxisVector(getNext(i));
+            p.srcForward = ParseAxisVector(getNext(i));
         else if (arg == "--src-unit")
-            opts.srcUnit = ParseUnit(getNext(i));
+            p.srcUnit = ParseUnit(getNext(i));
         else if (arg == "--pre-norm-up")
-            opts.preNormUp = ParseAxisVector(getNext(i));
+            p.preNormUp = ParseAxisVector(getNext(i));
         else if (arg == "--pre-norm-forward")
-            opts.preNormForward = ParseAxisVector(getNext(i));
+            p.preNormForward = ParseAxisVector(getNext(i));
         else if (arg == "--pre-norm-unit")
-            opts.preNormUnit = ParseUnit(getNext(i));
+            p.preNormUnit = ParseUnit(getNext(i));
         else if (arg == "-h" || arg == "--help")
         {
             PrintUsage(argv[0]);
@@ -116,65 +117,65 @@ ConvertOptions ArgumentParser::Parse(int argc, char* argv[])
     }
 
     // 必須引数チェック
-    if (opts.inputPath.empty())
+    if (cli.inputPath.empty())
         throw std::runtime_error("Missing required argument: -i / --input");
-    if (opts.outputPath.empty())
+    if (cli.outputPath.empty())
         throw std::runtime_error("Missing required argument: -o / --output");
 
     // --up/--forward は両方指定するか、両方省略する
-    if (opts.dstUp.has_value() != opts.dstForward.has_value())
+    if (p.dstUp.has_value() != p.dstForward.has_value())
         throw std::runtime_error("--up and --forward must both be specified or both omitted.");
-    if (opts.srcUp.has_value() != opts.srcForward.has_value())
+    if (p.srcUp.has_value() != p.srcForward.has_value())
         throw std::runtime_error("--src-up and --src-forward must both be specified or both omitted.");
 
     // 直交チェック（両方指定されている場合のみ）
-    if (opts.dstUp.has_value() && opts.dstForward.has_value())
+    if (p.dstUp.has_value() && p.dstForward.has_value())
     {
-        if (!opts.dstUp->IsOrthogonalTo(*opts.dstForward))
+        if (!p.dstUp->IsOrthogonalTo(*p.dstForward))
         {
             const char* axisNames[] = { "X", "Y", "Z" };
-            std::string upStr   = (opts.dstUp->sign < 0 ? "-" : "") + std::string(axisNames[opts.dstUp->axis]);
-            std::string fwdStr  = (opts.dstForward->sign < 0 ? "-" : "") + std::string(axisNames[opts.dstForward->axis]);
+            std::string upStr   = (p.dstUp->sign < 0 ? "-" : "") + std::string(axisNames[p.dstUp->axis]);
+            std::string fwdStr  = (p.dstForward->sign < 0 ? "-" : "") + std::string(axisNames[p.dstForward->axis]);
             throw std::runtime_error(
                 "Error: --up and --forward vectors must be orthogonal. Got up=" + upStr + ", forward=" + fwdStr + ".");
         }
     }
 
     // 入力側も同様にチェック
-    if (opts.srcUp.has_value() && opts.srcForward.has_value())
+    if (p.srcUp.has_value() && p.srcForward.has_value())
     {
-        if (!opts.srcUp->IsOrthogonalTo(*opts.srcForward))
+        if (!p.srcUp->IsOrthogonalTo(*p.srcForward))
         {
             const char* axisNames[] = { "X", "Y", "Z" };
-            std::string upStr  = (opts.srcUp->sign < 0 ? "-" : "") + std::string(axisNames[opts.srcUp->axis]);
-            std::string fwdStr = (opts.srcForward->sign < 0 ? "-" : "") + std::string(axisNames[opts.srcForward->axis]);
+            std::string upStr  = (p.srcUp->sign < 0 ? "-" : "") + std::string(axisNames[p.srcUp->axis]);
+            std::string fwdStr = (p.srcForward->sign < 0 ? "-" : "") + std::string(axisNames[p.srcForward->axis]);
             throw std::runtime_error(
                 "Error: --src-up and --src-forward vectors must be orthogonal. Got up=" + upStr + ", forward=" + fwdStr + ".");
         }
     }
 
     // --pre-norm-up/--pre-norm-forward は両方指定するか、両方省略する
-    if (opts.preNormUp.has_value() != opts.preNormForward.has_value())
+    if (p.preNormUp.has_value() != p.preNormForward.has_value())
         throw std::runtime_error("--pre-norm-up and --pre-norm-forward must both be specified or both omitted.");
 
     // pre-norm 軸の直交チェック
-    if (opts.preNormUp.has_value() && opts.preNormForward.has_value())
+    if (p.preNormUp.has_value() && p.preNormForward.has_value())
     {
-        if (!opts.preNormUp->IsOrthogonalTo(*opts.preNormForward))
+        if (!p.preNormUp->IsOrthogonalTo(*p.preNormForward))
         {
             const char* axisNames[] = { "X", "Y", "Z" };
-            std::string upStr  = (opts.preNormUp->sign < 0 ? "-" : "") + std::string(axisNames[opts.preNormUp->axis]);
-            std::string fwdStr = (opts.preNormForward->sign < 0 ? "-" : "") + std::string(axisNames[opts.preNormForward->axis]);
+            std::string upStr  = (p.preNormUp->sign < 0 ? "-" : "") + std::string(axisNames[p.preNormUp->axis]);
+            std::string fwdStr = (p.preNormForward->sign < 0 ? "-" : "") + std::string(axisNames[p.preNormForward->axis]);
             throw std::runtime_error(
                 "Error: --pre-norm-up and --pre-norm-forward vectors must be orthogonal. Got up=" + upStr + ", forward=" + fwdStr + ".");
         }
     }
 
     // --pre-norm-* と --src-* は排他
-    bool hasPreNorm    = opts.preNormUp.has_value() || opts.preNormUnit.has_value();
-    bool hasSrcOverride = opts.srcUp.has_value() || opts.srcUnit.has_value();
+    bool hasPreNorm    = p.preNormUp.has_value() || p.preNormUnit.has_value();
+    bool hasSrcOverride = p.srcUp.has_value() || p.srcUnit.has_value();
     if (hasPreNorm && hasSrcOverride)
         throw std::runtime_error("--pre-norm-* and --src-* options cannot be used together.");
 
-    return opts;
+    return cli;
 }

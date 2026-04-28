@@ -14,11 +14,12 @@ struct AxisVector
     }
 };
 
-struct ConvertOptions
+// ---------------------------------------------------------------------------
+// ConversionParams — 変換ロジックが必要とする純粋なパラメータ
+// FbxAxisUnitConverter ライブラリ利用者は、これと FbxScene* を渡すだけで変換できる。
+// ---------------------------------------------------------------------------
+struct ConversionParams
 {
-    std::string inputPath;
-    std::string outputPath;
-
     std::optional<AxisVector> dstUp;
     std::optional<AxisVector> dstForward;
 
@@ -32,4 +33,15 @@ struct ConvertOptions
     std::optional<AxisVector>    preNormUp;
     std::optional<AxisVector>    preNormForward;
     std::optional<FbxSystemUnit> preNormUnit;
+};
+
+// ---------------------------------------------------------------------------
+// CliOptions — CLI 専用オプション。ファイルパスと変換パラメータを保持する。
+// ライブラリ利用者は ConversionParams を直接構築する。
+// ---------------------------------------------------------------------------
+struct CliOptions
+{
+    std::string      inputPath;
+    std::string      outputPath;
+    ConversionParams params;
 };

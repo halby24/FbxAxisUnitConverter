@@ -1,7 +1,6 @@
 #include "FbxFileIO.h"
-#include <iostream>
 
-FbxScene* FbxFileIO::Import(FbxManager* manager, const std::string& path)
+FbxScene* FbxFileIO::Import(FbxManager* manager, const std::string& path, ILogger* logger)
 {
     std::string utf8Path = PathToUtf8(path);
 
@@ -18,11 +17,11 @@ FbxScene* FbxFileIO::Import(FbxManager* manager, const std::string& path)
     importer->Import(scene);
     importer->Destroy();
 
-    std::cout << "[Info] Loaded: " << path << "\n";
+    if (logger) logger->Info("Loaded: " + path);
     return scene;
 }
 
-void FbxFileIO::Export(FbxManager* manager, FbxScene* scene, const std::string& path)
+void FbxFileIO::Export(FbxManager* manager, FbxScene* scene, const std::string& path, ILogger* logger)
 {
     std::string utf8Path = PathToUtf8(path);
 
@@ -36,7 +35,7 @@ void FbxFileIO::Export(FbxManager* manager, FbxScene* scene, const std::string& 
     exporter->Export(scene);
     exporter->Destroy();
 
-    std::cout << "[Info] Saved: " << path << "\n";
+    if (logger) logger->Info("Saved: " + path);
 }
 
 std::string FbxFileIO::PathToUtf8(const std::string& path)

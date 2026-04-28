@@ -1,5 +1,5 @@
 #include "GeometryProcessor.h"
-#include <iostream>
+#include <sstream>
 #include <algorithm>
 #include <vector>
 
@@ -50,8 +50,9 @@ static void ReverseLayerElementByPolygon(
 
 // ---------------------------------------------------------------------------
 
-GeometryProcessor::GeometryProcessor(bool flipWinding)
+GeometryProcessor::GeometryProcessor(bool flipWinding, ILogger* logger)
     : mFlipWinding(flipWinding)
+    , mLogger(logger)
 {
 }
 
@@ -142,7 +143,8 @@ void GeometryProcessor::ProcessMesh(FbxMesh* mesh, const FbxAMatrix& convMatrix,
         FlipWindingOrder(mesh);
 
     mProcessedMeshes.insert(mesh);
-    std::cout << "[Geometry] Processed mesh: " << mesh->GetName() << "\n";
+    if (mLogger)
+        mLogger->Info(std::string("Processed mesh: ") + mesh->GetName());
 }
 
 // ---------------------------------------------------------------------------
@@ -200,7 +202,8 @@ void GeometryProcessor::ProcessSkin(
             }
 
             mProcessedClusters.insert(cluster);
-            std::cout << "[Geometry] Processed cluster: " << cluster->GetName() << "\n";
+            if (mLogger)
+                mLogger->Info(std::string("Processed cluster: ") + cluster->GetName());
         }
     }
 }
@@ -267,8 +270,13 @@ void GeometryProcessor::ProcessPoses(
         for (const PoseEntry& e : entries)
             pose->Add(e.node, e.mat, e.isLocal);
 
-        std::cout << "[Geometry] Converted bind pose: " << pose->GetName()
-                  << " (" << entryCount << " entries)\n";
+        if (mLogger)
+        {
+            std::ostringstream o;
+            o << "Converted bind pose: " << pose->GetName()
+              << " (" << entryCount << " entries)";
+            mLogger->Info(o.str());
+        }
     }
 }
 

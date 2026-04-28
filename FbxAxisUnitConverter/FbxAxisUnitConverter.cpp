@@ -2,7 +2,7 @@
 #include "GeometryProcessor.h"
 #include "TransformProcessor.h"
 #include "AnimProcessor.h"
-#include <iostream>
+#include <sstream>
 #include <stdexcept>
 #include <cmath>
 
@@ -124,55 +124,45 @@ static void BuildMatrix(
     outFlipWinding = (det < 0.0);
 }
 
+static const char* AxisName(int axis)
+{
+    static const char* kNames[] = { "X", "Y", "Z" };
+    return kNames[axis];
+}
+
+static std::string AxisVecToStr(const AxisVector& v)
+{
+    return (v.sign < 0 ? "-" : "+") + std::string(AxisName(v.axis));
+}
+
 // ---------------------------------------------------------------------------
 
-FbxAxisUnitConverter::FbxAxisUnitConverter(const ConvertOptions& options)
-    : mOptions(options)
+FbxAxisUnitConverter::FbxAxisUnitConverter(FbxScene* scene,
+                                           const ConversionParams& params,
+                                           ILogger* logger)
+    : mScene(scene)
+    , mParams(params)
+    , mLogger(logger)
 {
+    if (!mScene) throw std::runtime_error("FbxAxisUnitConverter: scene is null.");
 }
 
-FbxAxisUnitConverter::~FbxAxisUnitConverter()
+void FbxAxisUnitConverter::Convert()
 {
-    if (mScene)   { mScene->Destroy();   mScene   = nullptr; }
-    if (mManager) { mManager->Destroy(); mManager = nullptr; }
-}
-
-int FbxAxisUnitConverter::Run()
-{
-    // --- SDK init ---
-    mManager = FbxManager::Create();
-    if (!mManager) throw std::runtime_error("Failed to create FbxManager.");
-
-    FbxIOSettings* ios = FbxIOSettings::Create(mManager, IOSROOT);
-    mManager->SetIOSettings(ios);
-
-    // --- Import ---
-    mScene = FbxFileIO::Import(mManager, mOptions.inputPath);
-
-    // --- Pre-normalization (ルートオブジェクトの補正変換を除去) ---
     PreNormalize();
-
-    // --- Build conversion matrix ---
     BuildConversionMatrix();
-
-    // --- Rewrite GlobalSettings ---
     ApplyGlobalSettings();
-
-    // --- Process scene geometry and transforms ---
     ProcessScene();
-
-    // --- Export ---
-    FbxFileIO::Export(mManager, mScene, mOptions.outputPath);
-    return 0;
 }
 
 void FbxAxisUnitConverter::PreNormalize()
 {
-    bool hasAxis = mOptions.preNormUp.has_value() && mOptions.preNormForward.has_value();
-    bool hasUnit = mOptions.preNormUnit.has_value();
+    bool hasAxis = mParams.preNormUp.has_value() && mParams.preNormForward.has_value();
+    bool hasUnit = mParams.preNormUnit.has_value();
     if (!hasAxis && !hasUnit) return;
 
-    std::cout << "[Info] Pre-normalization: removing baked correction transforms from root children.\n";
+    if (mLogger)
+        mLogger->Info("Pre-normalization: removing baked correction transforms from root children.");
 
     FbxGlobalSettings& gs = mScene->GetGlobalSettings();
 
@@ -187,8 +177,8 @@ void FbxAxisUnitConverter::PreNormalize()
 
     if (hasAxis)
     {
-        AxisVector preNormUp    = *mOptions.preNormUp;
-        AxisVector preNormFwd   = *mOptions.preNormForward;
+        AxisVector preNormUp    = *mParams.preNormUp;
+        AxisVector preNormFwd   = *mParams.preNormForward;
         AxisVector preNormRight = ComputeRight(preNormUp, preNormFwd);
         AxisVector fileSrcRight = ComputeRight(fileSrcUp, fileSrcFwd);
 
@@ -196,14 +186,20 @@ void FbxAxisUnitConverter::PreNormalize()
                     fileSrcUp, fileSrcFwd, fileSrcRight,
                     corrMatrix, dummyFlip);
 
-        const char* axisNames[] = { "X", "Y", "Z" };
-        auto axStr = [&](const AxisVector& v) -> std::string {
-            return (v.sign < 0 ? "-" : "+") + std::string(axisNames[v.axis]);
-        };
-        std::cout << "[Info] PreNorm src: up=" << axStr(preNormUp) << " fwd=" << axStr(preNormFwd)
-                  << " right=" << axStr(preNormRight) << "\n";
-        std::cout << "[Info] FileSrc:     up=" << axStr(fileSrcUp) << " fwd=" << axStr(fileSrcFwd)
-                  << " right=" << axStr(fileSrcRight) << "\n";
+        if (mLogger)
+        {
+            std::ostringstream o1;
+            o1 << "PreNorm src: up=" << AxisVecToStr(preNormUp)
+               << " fwd=" << AxisVecToStr(preNormFwd)
+               << " right=" << AxisVecToStr(preNormRight);
+            mLogger->Info(o1.str());
+
+            std::ostringstream o2;
+            o2 << "FileSrc:     up=" << AxisVecToStr(fileSrcUp)
+               << " fwd=" << AxisVecToStr(fileSrcFwd)
+               << " right=" << AxisVecToStr(fileSrcRight);
+            mLogger->Info(o2.str());
+        }
     }
 
     FbxAMatrix corrInv = corrMatrix.Inverse();
@@ -212,12 +208,17 @@ void FbxAxisUnitConverter::PreNormalize()
     double scaleInv = 1.0;
     if (hasUnit)
     {
-        FbxSystemUnit preNormUnit = *mOptions.preNormUnit;
+        FbxSystemUnit preNormUnit = *mParams.preNormUnit;
         double corrScale = fileSrcUnit.GetScaleFactor() / preNormUnit.GetScaleFactor();
         scaleInv = 1.0 / corrScale;
-        std::cout << "[Info] PreNorm unit: fileSrc=" << fileSrcUnit.GetScaleFactor()
-                  << "cm  preNorm=" << preNormUnit.GetScaleFactor()
-                  << "cm  corrScale=" << corrScale << "  scaleInv=" << scaleInv << "\n";
+        if (mLogger)
+        {
+            std::ostringstream o;
+            o << "PreNorm unit: fileSrc=" << fileSrcUnit.GetScaleFactor()
+              << "cm  preNorm=" << preNormUnit.GetScaleFactor()
+              << "cm  corrScale=" << corrScale << "  scaleInv=" << scaleInv;
+            mLogger->Info(o.str());
+        }
     }
 
     // ルートの直接子ノードに逆補正を適用
@@ -228,24 +229,29 @@ void FbxAxisUnitConverter::PreNormalize()
         FbxNode* child = root->GetChild(i);
         TransformProcessor::ApplySingleNode(child, corrInv, corrMatrix, scaleInv);
 
-        FbxDouble3 r = child->LclRotation.Get();
-        FbxDouble3 s = child->LclScaling.Get();
-        FbxDouble3 t = child->LclTranslation.Get();
-        std::cout << "[Debug] After pre-norm, node '" << child->GetName() << "':"
-                  << " LclRot=("   << r[0] << "," << r[1] << "," << r[2] << ")"
-                  << " LclScale=(" << s[0] << "," << s[1] << "," << s[2] << ")"
-                  << " LclTrans=(" << t[0] << "," << t[1] << "," << t[2] << ")\n";
+        if (mLogger)
+        {
+            FbxDouble3 r = child->LclRotation.Get();
+            FbxDouble3 s = child->LclScaling.Get();
+            FbxDouble3 t = child->LclTranslation.Get();
+            std::ostringstream o;
+            o << "After pre-norm, node '" << child->GetName() << "':"
+              << " LclRot=("   << r[0] << "," << r[1] << "," << r[2] << ")"
+              << " LclScale=(" << s[0] << "," << s[1] << "," << s[2] << ")"
+              << " LclTrans=(" << t[0] << "," << t[1] << "," << t[2] << ")";
+            mLogger->Debug(o.str());
+        }
     }
 
     // BuildConversionMatrix() が preNorm 空間を src として使うよう上書き
     if (hasAxis)
     {
-        mOptions.srcUp      = mOptions.preNormUp;
-        mOptions.srcForward = mOptions.preNormForward;
+        mParams.srcUp      = mParams.preNormUp;
+        mParams.srcForward = mParams.preNormForward;
     }
     if (hasUnit)
     {
-        mOptions.srcUnit = mOptions.preNormUnit;
+        mParams.srcUnit = mParams.preNormUnit;
     }
 }
 
@@ -255,11 +261,11 @@ void FbxAxisUnitConverter::BuildConversionMatrix()
 
     // --- Determine source axis system ---
     AxisVector srcUp, srcFwd;
-    if (mOptions.srcUp.has_value() && mOptions.srcForward.has_value())
+    if (mParams.srcUp.has_value() && mParams.srcForward.has_value())
     {
-        srcUp  = *mOptions.srcUp;
-        srcFwd = *mOptions.srcForward;
-        std::cout << "[Info] Source axis overridden by arguments.\n";
+        srcUp  = *mParams.srcUp;
+        srcFwd = *mParams.srcForward;
+        if (mLogger) mLogger->Info("Source axis overridden by arguments.");
     }
     else
     {
@@ -271,11 +277,11 @@ void FbxAxisUnitConverter::BuildConversionMatrix()
 
     // --- Determine destination axis system ---
     AxisVector dstUp, dstFwd;
-    bool hasAxisConv = mOptions.dstUp.has_value() && mOptions.dstForward.has_value();
+    bool hasAxisConv = mParams.dstUp.has_value() && mParams.dstForward.has_value();
     if (hasAxisConv)
     {
-        dstUp  = *mOptions.dstUp;
-        dstFwd = *mOptions.dstForward;
+        dstUp  = *mParams.dstUp;
+        dstFwd = *mParams.dstForward;
     }
     else
     {
@@ -289,82 +295,101 @@ void FbxAxisUnitConverter::BuildConversionMatrix()
     AxisVector dstRight = ComputeRight(dstUp, dstFwd);
 
     // Logging
-    const char* axisNames[] = { "X", "Y", "Z" };
-    auto axStr = [&](const AxisVector& v) -> std::string {
-        return (v.sign < 0 ? "-" : "+") + std::string(axisNames[v.axis]);
-    };
-    std::cout << "[Info] Src: up=" << axStr(srcUp) << " fwd=" << axStr(srcFwd)
-              << " right=" << axStr(srcRight) << "\n";
-    std::cout << "[Info] Dst: up=" << axStr(dstUp) << " fwd=" << axStr(dstFwd)
-              << " right=" << axStr(dstRight) << "\n";
+    if (mLogger)
+    {
+        std::ostringstream o1;
+        o1 << "Src: up=" << AxisVecToStr(srcUp) << " fwd=" << AxisVecToStr(srcFwd)
+           << " right=" << AxisVecToStr(srcRight);
+        mLogger->Info(o1.str());
+
+        std::ostringstream o2;
+        o2 << "Dst: up=" << AxisVecToStr(dstUp) << " fwd=" << AxisVecToStr(dstFwd)
+           << " right=" << AxisVecToStr(dstRight);
+        mLogger->Info(o2.str());
+    }
 
     // --- Build rotation/swizzle matrix ---
     BuildMatrix(srcUp, srcFwd, srcRight, dstUp, dstFwd, dstRight,
                 mConvMatrix, mFlipWinding);
 
-    std::cout << "[Info] Winding flip: " << (mFlipWinding ? "yes" : "no") << "\n";
+    if (mLogger)
+        mLogger->Info(std::string("Winding flip: ") + (mFlipWinding ? "yes" : "no"));
 
     // --- Compute unit scale factor ---
-    FbxSystemUnit srcUnit = mOptions.srcUnit.has_value()
-                          ? *mOptions.srcUnit
+    FbxSystemUnit srcUnit = mParams.srcUnit.has_value()
+                          ? *mParams.srcUnit
                           : gs.GetSystemUnit();
-    FbxSystemUnit dstUnit = mOptions.dstUnit.has_value()
-                          ? *mOptions.dstUnit
+    FbxSystemUnit dstUnit = mParams.dstUnit.has_value()
+                          ? *mParams.dstUnit
                           : srcUnit;
 
     mScaleFactor = srcUnit.GetScaleFactor() / dstUnit.GetScaleFactor();
-    std::cout << "[Info] Unit: src=" << srcUnit.GetScaleFactor()
-              << "cm  dst=" << dstUnit.GetScaleFactor()
-              << "cm  factor=" << mScaleFactor << "\n";
+    if (mLogger)
+    {
+        std::ostringstream o;
+        o << "Unit: src=" << srcUnit.GetScaleFactor()
+          << "cm  dst=" << dstUnit.GetScaleFactor()
+          << "cm  factor=" << mScaleFactor;
+        mLogger->Info(o.str());
+    }
 }
 
 void FbxAxisUnitConverter::ApplyGlobalSettings()
 {
     FbxGlobalSettings& gs = mScene->GetGlobalSettings();
 
-    if (mOptions.dstUnit.has_value())
-        gs.SetSystemUnit(*mOptions.dstUnit);
+    if (mParams.dstUnit.has_value())
+        gs.SetSystemUnit(*mParams.dstUnit);
 
-    if (mOptions.dstUp.has_value() && mOptions.dstForward.has_value())
+    if (mParams.dstUp.has_value() && mParams.dstForward.has_value())
     {
-        FbxAxisSystem dstSys = MakeAxisSystem(*mOptions.dstUp, *mOptions.dstForward);
+        FbxAxisSystem dstSys = MakeAxisSystem(*mParams.dstUp, *mParams.dstForward);
         gs.SetAxisSystem(dstSys);
     }
 }
 
-static void DumpNodeRotations(FbxNode* node, int depth = 0)
+static void DumpNodeRotations(ILogger* logger, FbxNode* node, int depth = 0)
 {
-    if (!node) return;
+    if (!node || !logger) return;
     std::string indent(depth * 2, ' ');
     FbxDouble3 r = node->LclRotation.Get();
-    std::cout << indent << "[Node] " << node->GetName()
-              << "  LclRot=(" << r[0] << ", " << r[1] << ", " << r[2] << ")\n";
+    std::ostringstream o;
+    o << indent << "[Node] " << node->GetName()
+      << "  LclRot=(" << r[0] << ", " << r[1] << ", " << r[2] << ")";
+    logger->Debug(o.str());
     for (int i = 0; i < node->GetChildCount(); ++i)
-        DumpNodeRotations(node->GetChild(i), depth + 1);
+        DumpNodeRotations(logger, node->GetChild(i), depth + 1);
 }
 
 void FbxAxisUnitConverter::ProcessScene()
 {
-    // --- Debug: dump conversion matrix ---
-    std::cout << "[Debug] ConvMatrix rows:\n";
-    for (int r = 0; r < 4; ++r)
+    if (mLogger)
     {
-        FbxVector4 row = mConvMatrix.GetRow(r);
-        std::cout << "  row" << r << ": ("
-                  << row[0] << ", " << row[1] << ", "
-                  << row[2] << ", " << row[3] << ")\n";
+        mLogger->Debug("ConvMatrix rows:");
+        for (int r = 0; r < 4; ++r)
+        {
+            FbxVector4 row = mConvMatrix.GetRow(r);
+            std::ostringstream o;
+            o << "  row" << r << ": ("
+              << row[0] << ", " << row[1] << ", "
+              << row[2] << ", " << row[3] << ")";
+            mLogger->Debug(o.str());
+        }
+
+        mLogger->Debug("Node rotations BEFORE transform:");
+        DumpNodeRotations(mLogger, mScene->GetRootNode());
     }
 
-    std::cout << "[Debug] Node rotations BEFORE transform:\n";
-    DumpNodeRotations(mScene->GetRootNode());
-
-    GeometryProcessor geoProc(mFlipWinding);
+    GeometryProcessor geoProc(mFlipWinding, mLogger);
     geoProc.ProcessScene(mScene, mConvMatrix, mScaleFactor);
 
     TransformProcessor::ProcessNode(mScene->GetRootNode(), mConvMatrix, mScaleFactor);
 
-    std::cout << "[Debug] Node rotations AFTER transform:\n";
-    DumpNodeRotations(mScene->GetRootNode());
+    if (mLogger)
+    {
+        mLogger->Debug("Node rotations AFTER transform:");
+        DumpNodeRotations(mLogger, mScene->GetRootNode());
+    }
 
     AnimProcessor::ProcessAnimation(mScene, mConvMatrix, mScaleFactor);
 }

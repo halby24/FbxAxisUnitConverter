@@ -1,4 +1,5 @@
 #pragma once
+#include "Logger.h"
 #include <fbxsdk.h>
 #include <string>
 #include <stdexcept>
@@ -9,20 +10,24 @@
 // FBX SDK のパス引数は UTF-8 を期待する（ヘッダコメント: pFileName_UTF8）。
 // Windows では argv / std::string が CP_ACP (Shift-JIS 等) なので、
 // FbxAnsiToUTF8 で内部変換してから SDK に渡す。
+//
+// logger は非所有, nullptr 可（その場合ログ出力なし）。
 // ---------------------------------------------------------------------------
 class FbxFileIO
 {
 public:
     // FBX ファイルを読み込み、シーンを返す。
-    // manager: 呼び出し側が所有する FbxManager
-    // path:    ファイルパス (Windows では CP_ACP エンコーディング)
     // 失敗時は std::runtime_error をスロー
-    static FbxScene* Import(FbxManager* manager, const std::string& path);
+    static FbxScene* Import(FbxManager* manager,
+                            const std::string& path,
+                            ILogger* logger = nullptr);
 
     // FBX ファイルへシーンを書き出す。
-    // path: ファイルパス (Windows では CP_ACP エンコーディング)
     // 失敗時は std::runtime_error をスロー
-    static void Export(FbxManager* manager, FbxScene* scene, const std::string& path);
+    static void Export(FbxManager* manager,
+                       FbxScene* scene,
+                       const std::string& path,
+                       ILogger* logger = nullptr);
 
 private:
     // CP_ACP パスを FBX SDK が期待する UTF-8 に変換する
