@@ -3,6 +3,7 @@ add_executable(FbxAxisUnitConverterTests
     TestHelpers.h
     Test_DeepHierarchy.cpp
     Test_IdentityConversion.cpp
+    Test_FileIO.cpp
     Test_JapanesePath.cpp
     Test_NormalConversion.cpp
     Test_PreRotation.cpp

@@ -17,12 +17,16 @@ class FbxFileIO
 {
 public:
     // FBX ファイルを読み込み、シーンを返す。
-    // 失敗時は std::runtime_error をスロー
+    // SDK の読み込み成功に加え、Import の成否を確認する。
+    // 失敗時は std::runtime_error をスローし、"Loaded" は出力しない。
     static FbxScene* Import(FbxManager* manager,
                             const std::string& path,
                             ILogger* logger = nullptr);
 
-    // FBX ファイルへシーンを書き出す。
+    // FBX ファイルへ通常ファイルとしてシーンを書き出す。
+    // SDK の成功に加え、出力後に通常ファイルとして存在することを確認し、
+    // 満たさなければ std::runtime_error をスローする。
+    // すべての検証を通った場合のみ "Saved" を出力する。
     // 失敗時は std::runtime_error をスロー
     static void Export(FbxManager* manager,
                        FbxScene* scene,
