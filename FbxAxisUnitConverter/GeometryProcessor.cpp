@@ -81,7 +81,11 @@ void GeometryProcessor::ProcessMesh(FbxMesh* mesh, const FbxAMatrix& convMatrix,
     // --- Control points (vertex positions): rotate + scale ---
     int numVerts = mesh->GetControlPointsCount();
     FbxVector4* verts = mesh->GetControlPoints();
-    #pragma omp parallel for
+    // OpenMP が有効な場合のみ並列化する。
+    // macOS では OpenMP を有効化しないため逐次実行になる。
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
     for (int i = 0; i < numVerts; ++i)
     {
         FbxVector4 v(verts[i][0] * scale,
@@ -105,7 +109,11 @@ void GeometryProcessor::ProcessMesh(FbxMesh* mesh, const FbxAMatrix& convMatrix,
         auto* ptr = static_cast<FbxVector4*>(arr.GetLocked(FbxLayerElementArray::eReadWriteLock));
         if (ptr)
         {
-            #pragma omp parallel for
+            // OpenMP が有効な場合のみ並列化する。
+            // macOS では OpenMP を有効化しないため逐次実行になる。
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
             for (int i = 0; i < cnt; ++i)
             {
                 FbxVector4& v = ptr[i];

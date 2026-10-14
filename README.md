@@ -22,19 +22,50 @@ FBX ファイルの **軸系**（Up/Forward ベクトル）と**単位**（cm, m
 | C++ 規格 | C++17 |
 | プラットフォーム | x64 |
 
-FBX SDK は `C:\Program Files\Autodesk\FBX\FBX SDK\2020.x.x\` にインストールされている必要があります。
-パスは `FbxAxisUnitConverter.vcxproj` 内の `<FbxSdkDir>` プロパティで変更できます。
+FBX SDK のルートは CMake 変数または環境変数 `FBXSDK_ROOT` で指定する。
+未指定の場合は Windows 標準インストール先（`C:\Program Files\Autodesk\FBX\FBX SDK\2020.3.9`）を使う。
+
+### macOS での追加要件
+
+| 項目 | バージョン |
+|------|-----------|
+| OS / アーキテクチャ | macOS (arm64 で検証) |
+| Autodesk FBX SDK | 2020.x 以降（`/Applications/Autodesk/FBX SDK/<バージョン>/` にインストール） |
+| CMake | 3.20 以降 |
+| コンパイラ | AppleClang（Xcode 付属） |
+| ビルドバックエンド | Ninja（例） |
+
+- FBX SDK のルートは `cmake/FindFBXSDK.cmake` が自動検出する（`/Applications/Autodesk/FBX SDK/` 配下の最新バージョン）。
+  標準外の場所にインストールした場合は CMake 変数または環境変数 `FBXSDK_ROOT` で指定する。
+- macOS では OpenMP を有効化しない（逐次実行）。FBX SDK はスタティックリンクのため、実行時に追加の dylib は不要。
 
 ## ビルド
 
+### Windows でのビルド
+
 ```powershell
-& 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\amd64\MSBuild.exe' `
-    FbxAxisUnitConverter.sln /p:Configuration=Release /p:Platform=x64 /v:minimal
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+cmake --build build --config Release
 ```
 
-出力: `x64\Release\FbxAxisUnitConverter.exe`
+生成器の指定は親リポジトリの `build_addon.py` と同じである。
+出力: `build\FbxAxisUnitConverter\Release\FbxAxisUnitConverter.exe`
+（Visual Studio 生成器は構成名サブディレクトリを追加する。親リポジトリ経由でビルドする場合は `CMAKE_RUNTIME_OUTPUT_DIRECTORY` により `<ビルドディレクトリ>/bin/Release` 配下に集約される）
 
 FBX SDK はスタティックリンクのため、実行時に追加の DLL は不要です。
+
+なお、上記 Windows 手順は macOS 上で検証していない。生成器の指定と出力配置の規則は親リポジトリのビルドスクリプトおよび CMake の既定動作に基づく。
+
+### macOS でのビルド
+
+```bash
+cmake -S . -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build-release
+ctest --test-dir build-release --output-on-failure
+```
+
+Debug 構成も同様に `-DCMAKE_BUILD_TYPE=Debug` で別のビルドディレクトリに作成する。
+FBX SDK は自動検出される。標準外の場所にある場合は `-DFBXSDK_ROOT="/path/to/FBX SDK/x.y.z"` を `cmake` に渡すか、環境変数 `FBXSDK_ROOT` を設定する。
 
 ## 使い方
 
@@ -123,15 +154,27 @@ FbxAxisUnitConverter -i blender_export.fbx -o out.fbx \
 
 ```
 FbxAxisUnitConverter/
-├── FbxAxisUnitConverter.sln
-└── FbxAxisUnitConverter/
-    ├── main.cpp               # エントリポイント
-    ├── ConvertOptions.h       # データ構造（AxisVector, ConvertOptions）
-    ├── ArgumentParser.h/cpp   # CLI 引数パース・バリデーション
-    ├── FbxAxisUnitConverter.h/cpp  # メインコントローラ
-    ├── GeometryProcessor.h/cpp     # メッシュ頂点・法線変換
-    ├── TransformProcessor.h/cpp    # ノード Transform 変換
-    └── AnimProcessor.h/cpp         # アニメーション変換（TODO）
+├── CMakeLists.txt           # トップレベル定義（C++17、FBX SDK 検出、テスト登録）
+├── cmake/
+│   └── FindFBXSDK.cmake     # FBX SDK 検出モジュール
+├── FbxAxisUnitConverter/    # 本体（ライブラリ + CLI 実行ファイル）
+│   ├── CMakeLists.txt
+│   ├── main.cpp               # エントリポイント
+│   ├── ConvertOptions.h       # データ構造（AxisVector, ConvertOptions）
+│   ├── ArgumentParser.h/cpp   # CLI 引数パース・バリデーション
+│   ├── FbxAxisUnitConverter.h/cpp  # メインコントローラ
+│   ├── FbxFileIO.h/cpp        # FBX 入出力
+│   ├── GeometryProcessor.h/cpp     # メッシュ頂点・法線変換
+│   ├── TransformProcessor.h/cpp    # ノード Transform 変換
+│   ├── Logger.h               # ロガー注入用インターフェース
+│   └── AnimProcessor.h/cpp         # アニメーション変換（TODO）
+├── FbxAxisUnitConverterTests/  # GoogleTest 群
+│   ├── CMakeLists.txt
+│   ├── TestMain.cpp
+│   ├── TestHelpers.h
+│   └── Test_*.cpp             # 各種変換・日本語パスのテスト
+└── third_party/
+    └── googletest             # サブモジュール
 ```
 
 ## ライセンス
